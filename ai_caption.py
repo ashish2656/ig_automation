@@ -30,7 +30,8 @@ class AICaptionGenerator:
         if self.gemini_key:
             try:
                 genai.configure(api_key=self.gemini_key)
-                self.gemini_model = genai.GenerativeModel('gemini-1.5-flash')
+                # Use gemini-2.0-flash (latest stable model)
+                self.gemini_model = genai.GenerativeModel('gemini-2.0-flash')
                 self.gemini_available = True
                 print("✓ Gemini AI configured")
             except Exception as e:
