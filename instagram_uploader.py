@@ -7,6 +7,10 @@ import base64
 from instagrapi import Client
 from instagrapi.exceptions import LoginRequired, ClientError
 import json
+from email_notifier import send_session_expired_email, SessionExpiredError
+
+# Email to notify on session expiry
+NOTIFY_EMAIL = "ajyadodiya2003@gmail.com"
 
 
 class InstagramUploader:
@@ -52,16 +56,30 @@ class InstagramUploader:
                         self.client.get_timeline_feed()
                         print("✓ Session valid - logged in")
                         return
-                    except LoginRequired:
+                    except LoginRequired as e:
+                        print("⚠️ SESSION EXPIRED!")
+                        error_msg = str(e)
+                        
+                        # Send email notification
+                        if is_ci:
+                            send_session_expired_email(NOTIFY_EMAIL, error_msg)
+                            raise SessionExpiredError(f"Instagram session expired. Email sent to {NOTIFY_EMAIL}. Please regenerate session locally.")
+                        
+                        # Try relogin only if not in CI (CI IPs are blocked)
                         print("Session expired, attempting relogin...")
-                        # Only relogin if session truly expired
                         old_session = self.client.get_settings()
                         self.client.set_settings({})
                         self.client.set_uuids(old_session["uuids"])
                         self.client.login(self.username, self.password)
                         print("✓ Relogin successful")
                         return
+                except SessionExpiredError:
+                    raise  # Re-raise to stop execution
                 except Exception as e:
+                    error_msg = str(e)
+                    if is_ci and ("login_required" in error_msg.lower() or "challenge" in error_msg.lower()):
+                        send_session_expired_email(NOTIFY_EMAIL, error_msg)
+                        raise SessionExpiredError(f"Instagram session expired. Email sent to {NOTIFY_EMAIL}.")
                     print(f"Session from env failed: {e}")
             
             # Try to load from session file

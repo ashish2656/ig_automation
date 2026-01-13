@@ -72,6 +72,8 @@ jobs:
       env:
         TZ: 'UTC'
         IG_SESSION_B64: ${{ secrets.IG_SESSION }}
+        SMTP_EMAIL: ${{ secrets.SMTP_EMAIL }}
+        SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
     
     - name: Clean up sensitive files
       if: always()
