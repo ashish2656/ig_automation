@@ -3,6 +3,7 @@ Instagram uploader module
 """
 import os
 import time
+import base64
 from instagrapi import Client
 from instagrapi.exceptions import LoginRequired, ClientError
 import json
@@ -32,13 +33,39 @@ class InstagramUploader:
     def _login(self):
         """Login to Instagram with session persistence"""
         try:
-            # Remove old session if exists
-            if os.path.exists(self.session_file):
-                os.remove(self.session_file)
-                print("Cleared old Instagram session")
+            # Check if running in CI environment
+            is_ci = os.environ.get('CI') == 'true' or os.environ.get('GITHUB_ACTIONS') == 'true'
             
-            # Fresh login
-            print("Logging in to Instagram...")
+            # Try to load session from environment variable (base64 encoded)
+            session_b64 = os.environ.get('IG_SESSION_B64')
+            
+            if session_b64:
+                print("Loading Instagram session from environment...")
+                try:
+                    session_json = base64.b64decode(session_b64).decode()
+                    session_data = json.loads(session_json)
+                    self.client.set_settings(session_data)
+                    self.client.login(self.username, self.password)
+                    print("✓ Successfully logged in using saved session")
+                    return
+                except Exception as e:
+                    print(f"Session from env failed: {e}")
+            
+            # Try to load from session file
+            if os.path.exists(self.session_file):
+                print("Loading existing Instagram session from file...")
+                try:
+                    self.client.load_settings(self.session_file)
+                    self.client.login(self.username, self.password)
+                    print("✓ Successfully logged in using saved session")
+                    return
+                except Exception as e:
+                    print(f"Session file failed: {e}")
+                    if os.path.exists(self.session_file):
+                        os.remove(self.session_file)
+            
+            # Fresh login (only works locally, not in CI due to IP blacklist)
+            print("Logging in to Instagram (fresh login)...")
             self.client.login(self.username, self.password)
             
             # Verify login by getting account info
@@ -59,6 +86,7 @@ class InstagramUploader:
             print("2. Instagram may have flagged the account - try logging in via app/web first")
             print("3. You may need to verify your identity on Instagram")
             print("4. Consider using a different account for automation")
+            print("\nFor GitHub Actions, run generate_session.py locally first!")
             raise
     
     def upload_video(self, video_path, caption=""):

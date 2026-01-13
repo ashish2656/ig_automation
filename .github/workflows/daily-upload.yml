@@ -71,6 +71,7 @@ jobs:
         python main.py
       env:
         TZ: 'UTC'
+        IG_SESSION_B64: ${{ secrets.IG_SESSION }}
     
     - name: Clean up sensitive files
       if: always()
