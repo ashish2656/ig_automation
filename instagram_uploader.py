@@ -45,9 +45,22 @@ class InstagramUploader:
                     session_json = base64.b64decode(session_b64).decode()
                     session_data = json.loads(session_json)
                     self.client.set_settings(session_data)
-                    self.client.login(self.username, self.password)
-                    print("✓ Successfully logged in using saved session")
-                    return
+                    
+                    # DON'T call login() - just verify session works
+                    # Calling login() with different IP triggers security check
+                    try:
+                        self.client.get_timeline_feed()
+                        print("✓ Session valid - logged in")
+                        return
+                    except LoginRequired:
+                        print("Session expired, attempting relogin...")
+                        # Only relogin if session truly expired
+                        old_session = self.client.get_settings()
+                        self.client.set_settings({})
+                        self.client.set_uuids(old_session["uuids"])
+                        self.client.login(self.username, self.password)
+                        print("✓ Relogin successful")
+                        return
                 except Exception as e:
                     print(f"Session from env failed: {e}")
             
@@ -56,9 +69,20 @@ class InstagramUploader:
                 print("Loading existing Instagram session from file...")
                 try:
                     self.client.load_settings(self.session_file)
-                    self.client.login(self.username, self.password)
-                    print("✓ Successfully logged in using saved session")
-                    return
+                    # Verify without relogin
+                    try:
+                        self.client.get_timeline_feed()
+                        print("✓ Session valid - logged in")
+                        return
+                    except LoginRequired:
+                        print("Session expired, attempting relogin...")
+                        old_session = self.client.get_settings()
+                        self.client.set_settings({})
+                        self.client.set_uuids(old_session["uuids"])
+                        self.client.login(self.username, self.password)
+                        self.client.dump_settings(self.session_file)
+                        print("✓ Relogin successful")
+                        return
                 except Exception as e:
                     print(f"Session file failed: {e}")
                     if os.path.exists(self.session_file):
