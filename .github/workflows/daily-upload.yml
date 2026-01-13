@@ -64,7 +64,7 @@ jobs:
     
     - name: Create Google credentials
       run: |
-        echo '${{ secrets.GOOGLE_CREDENTIALS }}' > credentials.json
+        echo '${{ secrets.GOOGLE_SERVICE_ACCOUNT }}' > credentials.json
     
     - name: Run automation script
       run: |
