@@ -28,32 +28,44 @@ class GoogleDriveDownloader:
         self._authenticate()
     
     def _authenticate(self):
-        """Authenticate with Google Drive API using OAuth"""
+        """Authenticate with Google Drive API using Service Account (CI) or OAuth (local)"""
         try:
-            creds = None
-            # Token file stores the user's access and refresh tokens
-            if os.path.exists(self.token_file):
-                with open(self.token_file, 'rb') as token:
-                    creds = pickle.load(token)
+            # Check if running in CI environment (GitHub Actions)
+            is_ci = os.environ.get('CI') == 'true' or os.environ.get('GITHUB_ACTIONS') == 'true'
             
-            # If there are no valid credentials, let the user log in
-            if not creds or not creds.valid:
-                if creds and creds.expired and creds.refresh_token:
-                    creds.refresh(Request())
-                else:
-                    flow = InstalledAppFlow.from_client_secrets_file(
-                        self.credentials_file,
-                        scopes=['https://www.googleapis.com/auth/drive.readonly']
-                    )
-                    # Use port 8080 to match your OAuth configuration
-                    creds = flow.run_local_server(port=8080)
+            if is_ci:
+                # Use service account in CI (no browser available)
+                print("CI environment detected, using service account auth...")
+                from google.oauth2 import service_account
+                credentials = service_account.Credentials.from_service_account_file(
+                    self.credentials_file,
+                    scopes=['https://www.googleapis.com/auth/drive.readonly']
+                )
+                self.service = build('drive', 'v3', credentials=credentials)
+                print("✓ Successfully authenticated with Google Drive (Service Account)")
+            else:
+                # Use OAuth locally (requires browser)
+                creds = None
+                if os.path.exists(self.token_file):
+                    with open(self.token_file, 'rb') as token:
+                        creds = pickle.load(token)
                 
-                # Save the credentials for the next run
-                with open(self.token_file, 'wb') as token:
-                    pickle.dump(creds, token)
-            
-            self.service = build('drive', 'v3', credentials=creds)
-            print("✓ Successfully authenticated with Google Drive")
+                if not creds or not creds.valid:
+                    if creds and creds.expired and creds.refresh_token:
+                        creds.refresh(Request())
+                    else:
+                        flow = InstalledAppFlow.from_client_secrets_file(
+                            self.credentials_file,
+                            scopes=['https://www.googleapis.com/auth/drive.readonly']
+                        )
+                        creds = flow.run_local_server(port=8080)
+                    
+                    with open(self.token_file, 'wb') as token:
+                        pickle.dump(creds, token)
+                
+                self.service = build('drive', 'v3', credentials=creds)
+                print("✓ Successfully authenticated with Google Drive (OAuth)")
+                
         except Exception as e:
             print(f"✗ Error authenticating with Google Drive: {e}")
             raise
