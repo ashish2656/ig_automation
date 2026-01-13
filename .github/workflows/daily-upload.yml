@@ -1,0 +1,94 @@
+name: Daily Instagram Video Upload
+
+on:
+  schedule:
+    # Run 4 times a day: 9 AM, 1 PM, 5 PM, 9 PM UTC
+    # Adjust times based on your timezone
+    - cron: '0 9 * * *'   # 9:00 AM UTC
+    - cron: '0 13 * * *'  # 1:00 PM UTC
+    - cron: '0 17 * * *'  # 5:00 PM UTC
+    - cron: '0 21 * * *'  # 9:00 PM UTC
+  
+  # Allow manual trigger
+  workflow_dispatch:
+
+jobs:
+  upload-video:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Cache pip dependencies
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Create config.json
+      run: |
+        cat > config.json << EOF
+        {
+          "instagram": {
+            "username": "${{ secrets.IG_USERNAME }}",
+            "password": "${{ secrets.IG_PASSWORD }}"
+          },
+          "google_drive": {
+            "folder_id": "${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}",
+            "credentials_file": "credentials.json"
+          },
+          "posting": {
+            "videos_per_day": 4,
+            "caption": "${{ secrets.POST_CAPTION || 'Check out this amazing video! 🎥\n\n#instagram #reels #viral #trending' }}"
+          }
+        }
+        EOF
+    
+    - name: Create Google credentials
+      run: |
+        echo '${{ secrets.GOOGLE_CREDENTIALS }}' > credentials.json
+    
+    - name: Download video history
+      continue-on-error: true
+      run: |
+        # Download previous video history if it exists
+        curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+             -H "Accept: application/vnd.github.v3.raw" \
+             -o video_history.json \
+             -L "https://api.github.com/repos/${{ github.repository }}/contents/video_history.json" || echo "No history file found"
+    
+    - name: Run automation script
+      run: |
+        python main.py
+    
+    - name: Upload video history
+      if: always()
+      run: |
+        # Configure git
+        git config --global user.name "GitHub Actions"
+        git config --global user.email "actions@github.com"
+        
+        # Check if video_history.json exists and has changes
+        if [ -f video_history.json ]; then
+          git add video_history.json
+          git diff --staged --quiet || git commit -m "Update video history [skip ci]"
+          git push || echo "No changes to push"
+        fi
+    
+    - name: Clean up sensitive files
+      if: always()
+      run: |
+        rm -f config.json credentials.json ig_session.json

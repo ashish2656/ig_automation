@@ -1,0 +1,15 @@
+{
+  "instagram": {
+    "username": "your_username",
+    "password": "your_password"
+  },
+  "google_drive": {
+    "folder_id": "your_folder_id",
+    "credentials_file": "credentials.json"
+  },
+  "posting": {
+    "videos_per_day": 4,
+    "caption": "Check out this amazing video! 🎥\n\n#instagram #reels #viral #trending",
+    "upload_times": ["09:00", "13:00", "17:00", "21:00"]
+  }
+}

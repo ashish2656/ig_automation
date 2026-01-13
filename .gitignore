@@ -1,0 +1,53 @@
+# Python
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Environment variables
+.env
+config.json
+credentials.json
+
+# Instagram session
+session.json
+ig_session.json
+
+# Downloaded videos
+downloads/
+*.mp4
+*.mov
+*.avi
+
+# Tracking
+uploaded_videos.json
+video_history.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
