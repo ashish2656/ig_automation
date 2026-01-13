@@ -3,10 +3,13 @@ Google Drive video downloader module
 """
 import os
 import io
-from google.oauth2 import service_account
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 import json
+import pickle
 
 
 class GoogleDriveDownloader:
@@ -15,22 +18,41 @@ class GoogleDriveDownloader:
         Initialize Google Drive downloader
         
         Args:
-            credentials_file: Path to Google service account credentials JSON
+            credentials_file: Path to Google OAuth credentials JSON
             folder_id: Google Drive folder ID containing videos
         """
         self.folder_id = folder_id
         self.credentials_file = credentials_file
+        self.token_file = 'token.pickle'
         self.service = None
         self._authenticate()
     
     def _authenticate(self):
-        """Authenticate with Google Drive API"""
+        """Authenticate with Google Drive API using OAuth"""
         try:
-            credentials = service_account.Credentials.from_service_account_file(
-                self.credentials_file,
-                scopes=['https://www.googleapis.com/auth/drive.readonly']
-            )
-            self.service = build('drive', 'v3', credentials=credentials)
+            creds = None
+            # Token file stores the user's access and refresh tokens
+            if os.path.exists(self.token_file):
+                with open(self.token_file, 'rb') as token:
+                    creds = pickle.load(token)
+            
+            # If there are no valid credentials, let the user log in
+            if not creds or not creds.valid:
+                if creds and creds.expired and creds.refresh_token:
+                    creds.refresh(Request())
+                else:
+                    flow = InstalledAppFlow.from_client_secrets_file(
+                        self.credentials_file,
+                        scopes=['https://www.googleapis.com/auth/drive.readonly']
+                    )
+                    # Use port 8080 to match your OAuth configuration
+                    creds = flow.run_local_server(port=8080)
+                
+                # Save the credentials for the next run
+                with open(self.token_file, 'wb') as token:
+                    pickle.dump(creds, token)
+            
+            self.service = build('drive', 'v3', credentials=creds)
             print("✓ Successfully authenticated with Google Drive")
         except Exception as e:
             print(f"✗ Error authenticating with Google Drive: {e}")
@@ -100,6 +122,75 @@ class GoogleDriveDownloader:
             
         except Exception as e:
             print(f"✗ Error downloading video {file_name}: {e}")
+            return None
+    
+    def get_video_stream(self, file_id):
+        """
+        Get video file as bytes stream without saving to disk
+        
+        Args:
+            file_id: Google Drive file ID
+            
+        Returns:
+            BytesIO object containing video data or None if failed
+        """
+        try:
+            request = self.service.files().get_media(fileId=file_id)
+            fh = io.BytesIO()
+            downloader = MediaIoBaseDownload(fh, request)
+            
+            done = False
+            print(f"Streaming video from Google Drive...")
+            while not done:
+                status, done = downloader.next_chunk()
+                if status:
+                    print(f"  Progress: {int(status.progress() * 100)}%")
+            
+            fh.seek(0)  # Reset to beginning
+            print(f"✓ Successfully streamed video")
+            return fh
+            
+        except Exception as e:
+            print(f"✗ Error streaming video: {e}")
+            return None
+    
+    def download_to_temp(self, file_id, file_name):
+        """
+        Download video to temporary file
+        
+        Args:
+            file_id: Google Drive file ID
+            file_name: Original filename
+            
+        Returns:
+            Path to temporary file or None if failed
+        """
+        try:
+            import tempfile
+            
+            # Create temp file with same extension
+            ext = os.path.splitext(file_name)[1]
+            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
+            temp_path = temp_file.name
+            temp_file.close()
+            
+            # Download to temp file
+            request = self.service.files().get_media(fileId=file_id)
+            with open(temp_path, 'wb') as fh:
+                downloader = MediaIoBaseDownload(fh, request)
+                
+                done = False
+                print(f"Downloading {file_name} to temp...")
+                while not done:
+                    status, done = downloader.next_chunk()
+                    if status:
+                        print(f"  Progress: {int(status.progress() * 100)}%")
+            
+            print(f"✓ Downloaded to temp file")
+            return temp_path
+            
+        except Exception as e:
+            print(f"✗ Error downloading to temp: {e}")
             return None
     
     def get_next_videos(self, count=1, exclude_ids=None):

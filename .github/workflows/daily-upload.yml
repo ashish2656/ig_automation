@@ -1,13 +1,9 @@
-name: Daily Instagram Video Upload
+name: Instagram Video Upload - Every 3 Hours
 
 on:
   schedule:
-    # Run 4 times a day: 9 AM, 1 PM, 5 PM, 9 PM UTC
-    # Adjust times based on your timezone
-    - cron: '0 9 * * *'   # 9:00 AM UTC
-    - cron: '0 13 * * *'  # 1:00 PM UTC
-    - cron: '0 17 * * *'  # 5:00 PM UTC
-    - cron: '0 21 * * *'  # 9:00 PM UTC
+    # Run every 3 hours (8 times a day)
+    - cron: '0 */3 * * *'  # At minute 0 past every 3rd hour
   
   # Allow manual trigger
   workflow_dispatch:
@@ -50,9 +46,18 @@ jobs:
             "folder_id": "${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}",
             "credentials_file": "credentials.json"
           },
+          "mongodb": {
+            "connection_string": "${{ secrets.MONGODB_CONNECTION_STRING }}",
+            "database": "ig_automation",
+            "collection": "uploaded_videos"
+          },
+          "ai": {
+            "gemini_api_key": "${{ secrets.GEMINI_API_KEY }}",
+            "openai_api_key": "${{ secrets.OPENAI_API_KEY }}",
+            "default_caption": "Check out this amazing video! 🎥\n\n#reels #viral #trending #explore #fyp"
+          },
           "posting": {
-            "videos_per_day": 4,
-            "caption": "${{ secrets.POST_CAPTION || 'Check out this amazing video! 🎥\n\n#instagram #reels #viral #trending' }}"
+            "videos_per_day": 8
           }
         }
         EOF
@@ -61,34 +66,13 @@ jobs:
       run: |
         echo '${{ secrets.GOOGLE_CREDENTIALS }}' > credentials.json
     
-    - name: Download video history
-      continue-on-error: true
-      run: |
-        # Download previous video history if it exists
-        curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-             -H "Accept: application/vnd.github.v3.raw" \
-             -o video_history.json \
-             -L "https://api.github.com/repos/${{ github.repository }}/contents/video_history.json" || echo "No history file found"
-    
     - name: Run automation script
       run: |
         python main.py
-    
-    - name: Upload video history
-      if: always()
-      run: |
-        # Configure git
-        git config --global user.name "GitHub Actions"
-        git config --global user.email "actions@github.com"
-        
-        # Check if video_history.json exists and has changes
-        if [ -f video_history.json ]; then
-          git add video_history.json
-          git diff --staged --quiet || git commit -m "Update video history [skip ci]"
-          git push || echo "No changes to push"
-        fi
+      env:
+        TZ: 'UTC'
     
     - name: Clean up sensitive files
       if: always()
       run: |
-        rm -f config.json credentials.json ig_session.json
+        rm -f config.json credentials.json ig_session.json token.pickle

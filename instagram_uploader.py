@@ -22,36 +22,43 @@ class InstagramUploader:
         self.password = password
         self.session_file = session_file
         self.client = Client()
-        self.client.delay_range = [1, 3]
+        
+        # Configure client settings for better reliability
+        self.client.delay_range = [2, 5]
+        self.client.request_timeout = 10
+        
         self._login()
     
     def _login(self):
         """Login to Instagram with session persistence"""
         try:
-            # Try to load existing session
+            # Remove old session if exists
             if os.path.exists(self.session_file):
-                print("Loading existing Instagram session...")
-                try:
-                    self.client.load_settings(self.session_file)
-                    self.client.login(self.username, self.password)
-                    
-                    # Verify session is valid
-                    self.client.get_timeline_feed()
-                    print("✓ Successfully logged in using saved session")
-                    return
-                except Exception as e:
-                    print(f"Saved session failed, logging in fresh: {e}")
+                os.remove(self.session_file)
+                print("Cleared old Instagram session")
             
             # Fresh login
             print("Logging in to Instagram...")
             self.client.login(self.username, self.password)
             
+            # Verify login by getting account info
+            try:
+                account_info = self.client.account_info()
+                print(f"✓ Successfully logged in as: {account_info.username}")
+            except:
+                print("✓ Successfully logged in")
+            
             # Save session
             self.client.dump_settings(self.session_file)
-            print("✓ Successfully logged in and saved session")
+            print("✓ Session saved")
             
         except Exception as e:
             print(f"✗ Error logging in to Instagram: {e}")
+            print("\nPossible issues:")
+            print("1. Check username and password are correct")
+            print("2. Instagram may have flagged the account - try logging in via app/web first")
+            print("3. You may need to verify your identity on Instagram")
+            print("4. Consider using a different account for automation")
             raise
     
     def upload_video(self, video_path, caption=""):
@@ -72,18 +79,30 @@ class InstagramUploader:
             
             print(f"Uploading video to Instagram: {os.path.basename(video_path)}")
             
-            # Upload video as reel (Instagram prefers reels for videos)
-            media = self.client.clip_upload(
-                video_path,
-                caption=caption
-            )
+            # Try uploading as reel first
+            try:
+                media = self.client.clip_upload(
+                    video_path,
+                    caption=caption
+                )
+                
+                if media:
+                    print(f"✓ Successfully uploaded video as Reel! Post ID: {media.pk}")
+                    return True
+            except Exception as e:
+                print(f"Reel upload failed, trying as video post: {e}")
+                # Try regular video post
+                media = self.client.video_upload(
+                    video_path,
+                    caption=caption
+                )
+                
+                if media:
+                    print(f"✓ Successfully uploaded as video post! Post ID: {media.pk}")
+                    return True
             
-            if media:
-                print(f"✓ Successfully uploaded video! Post ID: {media.pk}")
-                return True
-            else:
-                print("✗ Upload failed - no media object returned")
-                return False
+            print("✗ Upload failed - no media object returned")
+            return False
                 
         except ClientError as e:
             print(f"✗ Instagram API error: {e}")

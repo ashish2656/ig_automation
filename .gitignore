@@ -25,7 +25,9 @@ wheels/
 # Environment variables
 .env
 config.json
-credentials.json
+
+# Google OAuth
+token.pickle
 
 # Instagram session
 session.json
