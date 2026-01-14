@@ -24,9 +24,12 @@ class InstagramUploader:
         self.session_file = session_file
         self.client = Client()
         
-        # Configure client settings for better reliability
-        self.client.delay_range = [2, 5]
-        self.client.request_timeout = 10
+        # Configure client settings to mimic real app behavior
+        self.client.delay_range = [3, 7]  # Increased delays
+        self.client.request_timeout = 15
+        
+        # Set realistic user agent and device info
+        self.client.set_user_agent("Instagram 315.0.0.35.119 Android (31/12; 420dpi; 1080x2265; OnePlus; ONEPLUS A6010; OnePlus6T; qcom; en_US; 563447805)")
         
         self._login()
     
